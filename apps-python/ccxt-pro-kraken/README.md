@@ -88,6 +88,61 @@ Query the database directly for custom analysis:
 docker exec -it timescaledb psql -d "postgres://postgres:password@localhost/postgres"
 ```
 
+#### Basic Database Inspection Commands
+```sql
+-- List all tables
+\dt
+
+-- Describe table structure
+\d kraken_orderbook_messages
+\d kraken_orderbook_entries
+
+-- List all databases
+\l
+
+-- List all schemas
+\dn
+```
+
+#### Data Inspection Queries
+```sql
+-- Check if tables exist and have data
+SELECT COUNT(*) FROM kraken_orderbook_messages;
+SELECT COUNT(*) FROM kraken_orderbook_entries;
+
+-- View recent messages
+SELECT * FROM kraken_orderbook_messages ORDER BY timestamp DESC LIMIT 5;
+
+-- View recent bid/ask entries
+SELECT * FROM kraken_orderbook_entries ORDER BY timestamp DESC LIMIT 10;
+
+-- Check unique symbols
+SELECT DISTINCT symbol FROM kraken_orderbook_messages;
+
+-- Get message statistics
+SELECT 
+    COUNT(*) as total_messages,
+    COUNT(DISTINCT symbol) as unique_symbols,
+    MIN(timestamp) as first_message,
+    MAX(timestamp) as last_message
+FROM kraken_orderbook_messages;
+
+-- View raw JSON message (pretty formatted)
+SELECT jsonb_pretty(raw_message) FROM kraken_orderbook_messages LIMIT 1;
+```
+
+#### TimescaleDB Specific Queries
+```sql
+-- Check hypertables
+SELECT * FROM timescaledb_information.hypertables;
+
+-- Check chunks
+SELECT * FROM timescaledb_information.chunks;
+
+-- Exit psql
+\q
+```
+
 Example queries:
 ```sql
 -- View recent messages
@@ -97,7 +152,7 @@ SELECT * FROM kraken_orderbook_messages ORDER BY timestamp DESC LIMIT 10;
 SELECT * FROM kraken_orderbook_entries WHERE symbol = 'BTC/USD' ORDER BY timestamp DESC;
 
 -- Get message statistics
-SELECT 
+SELECT
     COUNT(*) as total_messages,
     COUNT(DISTINCT symbol) as unique_symbols,
     MIN(timestamp) as first_message,

@@ -4,4 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+barter-data = "0.10.2"
+barter-instrument = "0.3.1"
+futures = "0.3.31"
 kraken-client = { path = "../../crates/kraken-client" }
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1.41"
+tungstenite = "0.28.0"

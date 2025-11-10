@@ -1,2 +1,5 @@
 ccxt[pro]
 asyncpg
+aiohttp
+aiohttp-cors
+websockets

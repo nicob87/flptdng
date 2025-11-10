@@ -170,6 +170,12 @@ async def main():
         default="localhost",
         help="Replay server host (default: localhost)",
     )
+    parser.add_argument(
+        "--sym",
+        type=str,
+        default="BTC/USD",
+        help="Symbol to watch (default: BTC/USD)",
+    )
 
     args = parser.parse_args()
 
@@ -207,8 +213,9 @@ async def main():
 
             # Watch order book from replay server (same API as live)
             for i in range(20 - 2):
+            # for i in range(20):
                 try:
-                    orderbook = await exchange.watch_order_book("BTC/USD")
+                    orderbook = await exchange.watch_order_book(args.sym)
                     print(
                         f"🎬 SIMULATED orderbook {i}: {orderbook['symbol']} - Bids: {len(orderbook['bids'])}, Asks: {len(orderbook['asks'])}, BOOK: {orderbook}"
                     )
@@ -221,7 +228,7 @@ async def main():
             print(f"❌ Simulation error: {e}")
         finally:
             try:
-                await exchange.un_watch_order_book("BTC/USD")
+                await exchange.un_watch_order_book(args.sym)
                 print("🛑 Un-watched order book")
             except:
                 pass
@@ -241,15 +248,15 @@ async def main():
         await exchange.connect_db()
         print("Database connected successfully")
 
-        for i in range(20):
-            orderbook = await exchange.watch_order_book("BTC/USD")
+        for i in range(20-2):
+            orderbook = await exchange.watch_order_book(args.sym)
             await sleep(1)
             print(
                 f"📈 Live orderbook update {i}: {orderbook['symbol']} - Bids: {len(orderbook['bids'])}, Asks: {len(orderbook['asks'])}"
             )
     finally:
         try:
-            await exchange.un_watch_order_book("BTC/USD")
+            await exchange.un_watch_order_book(args.sym)
             print("🛑 Un-watched order book")
         except:
             pass

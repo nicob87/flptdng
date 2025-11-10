@@ -45,7 +45,12 @@ class KrakenReplayServer:
         """HTTP POST endpoint to prepare replay from a specific date"""
         try:
             print("===== 0 Preparing replay...")
+            print(f"===== 0-1 Request method: {request.method}")
+            print(f"===== 0-2 Request headers: {dict(request.headers)}")
+            print(f"===== 0-3 Request content type: {request.content_type}")
+            
             data = await request.json()
+            print(f"===== 0-4 Request body (parsed JSON): {data}")
             requested_date = data.get("date")
 
             print(f"===== 1 Requested date for replay: {requested_date}")
@@ -142,22 +147,38 @@ class KrakenReplayServer:
             return web.json_response({"error": str(e)}, status=500)
 
     async def get_replay_messages(
-        self, start_timestamp: datetime.datetime
+        self, start_timestamp: datetime.datetime, symbol: str = None
     ) -> List[Dict[str, Any]]:
-        """Get all messages for replay starting from the given timestamp"""
-        print(f"===== 19 Getting replay messages from: {start_timestamp}")
+        """Get all messages for replay starting from the given timestamp, optionally filtered by symbol"""
+        print(f"===== 19 Getting replay messages from: {start_timestamp}, symbol: {symbol}")
         conn = await asyncpg.connect(self.db_connection_string)
         try:
             print("===== 20 Executing messages query...")
-            messages = await conn.fetch(
-                """
-                SELECT timestamp, message_type, raw_message
-                FROM kraken_orderbook_messages 
-                WHERE timestamp >= $1
-                ORDER BY timestamp ASC
-            """,
-                start_timestamp,
-            )
+            if symbol:
+                # Filter by symbol if provided
+                messages = await conn.fetch(
+                    """
+                    SELECT timestamp, message_type, raw_message
+                    FROM kraken_orderbook_messages 
+                    WHERE timestamp >= $1 AND symbol = $2
+                    ORDER BY timestamp ASC
+                """,
+                    start_timestamp,
+                    symbol,
+                )
+                print(f"===== 20-1 Filtered query for symbol: {symbol}")
+            else:
+                # Original query without symbol filter
+                messages = await conn.fetch(
+                    """
+                    SELECT timestamp, message_type, raw_message
+                    FROM kraken_orderbook_messages 
+                    WHERE timestamp >= $1
+                    ORDER BY timestamp ASC
+                """,
+                    start_timestamp,
+                )
+                print("===== 20-2 Query without symbol filter")
 
             print(f"===== 21 Found {len(messages)} messages")
             return [
@@ -178,9 +199,80 @@ class KrakenReplayServer:
     async def websocket_handler(self, request):
         """WebSocket handler for replaying order book data"""
         print("===== 24 WebSocket connection initiated")
+
         ws = web.WebSocketResponse()
         await ws.prepare(request)
         print("===== 25 WebSocket prepared")
+
+        # Check for incoming WebSocket messages (subscription)
+        print("===== 25-1 Waiting for subscription message...")
+        subscription_data = None
+        message_count = 0
+        
+        while subscription_data is None:
+            try:
+                message_count += 1
+                print(f"===== 25-1-{message_count} Waiting for message #{message_count}...")
+                msg = await ws.receive(timeout=10.0)  # Wait up to 10 seconds for each message
+                
+                if msg.type == WSMsgType.TEXT:
+                    try:
+                        parsed_message = json.loads(msg.data)
+                        print(f"===== 25-2-{message_count} Received WebSocket message #{message_count}: {parsed_message}")
+                        
+                        # Check if this is a subscription message
+                        if parsed_message.get("method") == "subscribe":
+                            subscription_data = parsed_message
+                            print(f"===== 25-3 Found subscription message: {subscription_data}")
+                            break
+                        else:
+                            print(f"===== 25-4-{message_count} Message #{message_count} is not a subscription (method={parsed_message.get('method')}), continuing to wait...")
+                            
+                    except json.JSONDecodeError as e:
+                        print(f"===== 25-5-{message_count} Message #{message_count} is not valid JSON: {e}, data: {msg.data}")
+                        
+                elif msg.type == WSMsgType.ERROR:
+                    print(f"===== 25-6-{message_count} WebSocket error in message #{message_count}: {msg.data}")
+                    break
+                    
+                elif msg.type == WSMsgType.CLOSE:
+                    print(f"===== 25-7-{message_count} WebSocket closed in message #{message_count}")
+                    break
+                    
+                else:
+                    print(f"===== 25-8-{message_count} Received non-text WebSocket message #{message_count}: {msg.type}")
+                    
+            except asyncio.TimeoutError:
+                print(f"===== 25-9-{message_count} Timeout waiting for message #{message_count}, continuing...")
+                continue
+                
+            except Exception as e:
+                print(f"===== 25-10-{message_count} Error receiving message #{message_count}: {e}")
+                break
+        
+        if subscription_data is None:
+            print("===== 25-11 ERROR: No valid subscription message received")
+            await ws.send_str(json.dumps({"error": "No subscription message received"}))
+            return ws
+        
+        # Extract symbol from subscription
+        try:
+            params = subscription_data.get("params", {})
+            symbols = params.get("symbol", [])
+            if not symbols:
+                print("===== 25-12 ERROR: No symbols in subscription")
+                await ws.send_str(json.dumps({"error": "No symbols in subscription"}))
+                return ws
+            
+            # Assume single symbol for now
+            subscribed_symbol = symbols[0] if isinstance(symbols, list) else symbols
+            print(f"===== 25-13 Extracted subscribed symbol: {subscribed_symbol}")
+            
+        except Exception as e:
+            print(f"===== 25-14 ERROR: Failed to extract symbol from subscription: {e}")
+            await ws.send_str(json.dumps({"error": "Invalid subscription format"}))
+            return ws
+
 
         # Get replay start date from query parameters
         start_date_param = request.query.get("start_date")
@@ -218,21 +310,21 @@ class KrakenReplayServer:
 
         try:
             print("===== 32 Getting messages for replay...")
-            # Get all messages for replay
-            messages = await self.get_replay_messages(start_datetime)
+            # Get all messages for replay, filtered by subscribed symbol
+            messages = await self.get_replay_messages(start_datetime, subscribed_symbol)
 
             if not messages:
-                print("===== 33 ERROR: No messages found for WebSocket replay")
+                print(f"===== 33 ERROR: No messages found for WebSocket replay (symbol: {subscribed_symbol})")
                 await ws.send_str(
                     json.dumps(
                         {
-                            "error": "No messages found for replay from the specified date"
+                            "error": f"No messages found for replay from the specified date for symbol {subscribed_symbol}"
                         }
                     )
                 )
                 return ws
 
-            print(f"===== 34 Found {len(messages)} messages for replay")
+            print(f"===== 34 Found {len(messages)} messages for replay (symbol: {subscribed_symbol})")
 
             # Send connection acknowledgment (similar to Kraken)
             print("===== 35 Sending connection acknowledgment...")
@@ -243,7 +335,7 @@ class KrakenReplayServer:
                         "result": {
                             "channel": "book",
                             "snapshot": True,
-                            "symbol": "BTC/USD",
+                            "symbol": subscribed_symbol,
                         },
                         "success": True,
                         "time_in": datetime.datetime.now(

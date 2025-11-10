@@ -213,7 +213,6 @@ async def main():
 
             # Watch order book from replay server (same API as live)
             for i in range(20 - 2):
-            # for i in range(20):
                 try:
                     orderbook = await exchange.watch_order_book(args.sym)
                     print(
@@ -248,7 +247,7 @@ async def main():
         await exchange.connect_db()
         print("Database connected successfully")
 
-        for i in range(20-2):
+        for i in range(20):
             orderbook = await exchange.watch_order_book(args.sym)
             await sleep(1)
             print(

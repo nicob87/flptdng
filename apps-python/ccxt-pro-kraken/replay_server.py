@@ -325,12 +325,9 @@ class KrakenReplayServer:
 
                 # Calculate real delay based on timestamp difference
                 if previous_timestamp is not None:
-                    time_diff = (current_timestamp - previous_timestamp).total_seconds()
-                    # Cap the delay to a reasonable maximum (e.g., 60 seconds)
-                    delay = min(time_diff, 60.0)
-                    if delay > 0.5:  # Only log significant delays
-                        print(f"⏱️ Waiting {delay:.2f}s (real timing)")
-                        await asyncio.sleep(delay)
+                    delay = (current_timestamp - previous_timestamp).total_seconds()
+                    print(f"⏱️ Waiting {delay:.2f}s (real timing)")
+                    await asyncio.sleep(delay)
 
                 # Send the message in Kraken WebSocket format
                 await ws.send_str(json.dumps(message))

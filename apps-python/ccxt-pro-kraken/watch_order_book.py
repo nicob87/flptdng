@@ -17,6 +17,7 @@ class CustomKraken(ccxtpro.kraken):
         self.db_pool = None
         self.simulation_mode = config.get("simulation_mode", False)
         self.replay_server_url = config.get("replay_server_url", None)
+        self.saved_message_count = 0
 
         # Override WebSocket URL for simulation
         if self.simulation_mode and self.replay_server_url:
@@ -58,7 +59,7 @@ class CustomKraken(ccxtpro.kraken):
             timestamp_str = data.get("timestamp")
 
             if message_type == "snapshot":
-                print("===== Strange, snapshot received:", raw_message)
+                print(f"📷 Snapshot received for {symbol}: {len(data.get('bids', []))} bids, {len(data.get('asks', []))} asks")
 
             # Use message timestamp if available, otherwise current time
             # copilot did this, I think it is better to just use always current time.
@@ -134,8 +135,16 @@ class CustomKraken(ccxtpro.kraken):
                             checksum,
                         )
 
+                # Increment counter for successfully saved message
+                self.saved_message_count += 1
+
         except Exception as e:
             print(f"Error saving to database: {e}")
+
+    def print_summary(self):
+        """Print summary of saved messages"""
+        if not self.simulation_mode and self.saved_message_count > 0:
+            print(f"💾 Total messages saved to database: {self.saved_message_count}")
 
     def handle_order_book(self, client, message):
         # print("===== Order book message:", message)
@@ -233,6 +242,7 @@ async def main():
                 print("🛑 Un-watched order book")
             except:
                 pass
+            exchange.print_summary()
             await exchange.close()
             print("🔌 Connection closed")
 
@@ -261,6 +271,7 @@ async def main():
             print("🛑 Un-watched order book")
         except:
             pass
+        exchange.print_summary()
         await exchange.close_db()  # Close database connection
         await exchange.close()
         print("🔌 Connection closed")

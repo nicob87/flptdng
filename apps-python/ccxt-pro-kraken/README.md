@@ -14,11 +14,28 @@ Or install from requirements file:
 pip install -r requirements.txt
 ```
 
-### 2. Setup Database Tables
+### 2. Start TimescaleDB Container
+
+**Option 2: Start container**
+```bash
+docker run -d --name timescaledb -p 5432:5432 -e POSTGRES_PASSWORD=password timescale/timescaledb-ha:pg17
+```
+
+### 3. Setup Database Tables
 
 First, make sure your TimescaleDB container is running, then setup the database tables.
 
-**Option 1: Copy file to container and execute**
+**Option 1: Use reset_db.py script (Recommended)**
+```bash
+python reset_db.py
+```
+This script will automatically:
+- Check if tables exist and create them if they don't
+- Reset (clear) existing data if tables already exist
+- Set up TimescaleDB hypertables and indexes
+- Verify the setup completed successfully
+
+**Option 2: Copy file to container and execute**
 ```bash
 # Copy the SQL file into the container
 docker cp setup_timescale_tables.sql timescaledb:/tmp/setup_timescale_tables.sql
@@ -27,7 +44,7 @@ docker cp setup_timescale_tables.sql timescaledb:/tmp/setup_timescale_tables.sql
 docker exec -it timescaledb psql -d "postgres://postgres:password@localhost/postgres" -f /tmp/setup_timescale_tables.sql
 ```
 
-**Option 2: Execute SQL commands manually**
+**Option 3: Execute SQL commands manually**
 ```bash
 docker exec -it timescaledb psql -d "postgres://postgres:password@localhost/postgres"
 ```
@@ -73,16 +90,28 @@ Then copy and paste the SQL commands from `setup_timescale_tables.sql`.
 ### 1. Collect Data
 Run the main script to start collecting order book data:
 ```bash
-python watch_order_book.py
+python watch_order_book.py --sym ETH/USD
 ```
 
-### 2. View Collected Data
+### 2. Start Replay Server
+Run the replay server to serve historical order book data:
+```bash
+python replay_server.py
+```
+
+### 3. Run Watch Order Book Client Against Replay Server
+Run the watch order book client in simulation mode to replay historical data:
+```bash
+python watch_order_book.py --sym ETH/USD -s "2025-11-08"
+```
+
+### 4. View Collected Data
 Use the query script to view the collected data:
 ```bash
 python query_data.py
 ```
 
-### 3. Custom Analysis
+### 5. Custom Analysis
 Query the database directly for custom analysis:
 ```bash
 docker exec -it timescaledb psql -d "postgres://postgres:password@localhost/postgres"

@@ -51,40 +51,6 @@ docker exec -it timescaledb psql -d "postgres://postgres:password@localhost/post
 
 Then copy and paste the SQL commands from `setup_timescale_tables.sql`.
 
-## What the Enhanced Code Does
-
-### Database Connection
-- Creates an async connection pool to TimescaleDB
-- Handles connection errors gracefully
-
-### Raw Message Storage
-- Saves the complete original message as JSONB for exact replay
-- Preserves all original data structure and metadata
-
-### Normalized Data
-- Also stores individual bid/ask entries in a separate table for easier querying
-- Allows for efficient price/quantity analysis
-
-### Timestamp Handling
-- Uses the message timestamp when available from Kraken
-- Falls back to current time if timestamp not provided
-
-### Error Handling
-- Catches and logs database errors without breaking the main WebSocket flow
-- Continues operation even if database writes fail
-
-### Conflict Resolution
-- Uses ON CONFLICT for bid/ask entries to handle duplicate timestamps
-- Ensures data integrity
-
-## Benefits
-
-- **Exact Replay**: You can reconstruct the exact sequence of events
-- **Efficient Queries**: TimescaleDB is optimized for time-series data
-- **Flexible Analysis**: Both raw messages and normalized data available
-- **Data Integrity**: Checksums stored for verification
-- **High Performance**: Async operations don't block WebSocket processing
-
 ## Usage
 
 ### 1. Collect Data
@@ -104,6 +70,7 @@ Run the watch order book client in simulation mode to replay historical data:
 ```bash
 python watch_order_book.py --sym ETH/USD -s "2025-11-08"
 ```
+Date can be any date before the data was collected, it will replay the most recent snapshot.
 
 ### 4. View Collected Data
 Use the query script to view the collected data:
@@ -188,6 +155,40 @@ SELECT
     MAX(timestamp) as last_message
 FROM kraken_orderbook_messages;
 ```
+
+## What the Enhanced Code Does
+
+### Database Connection
+- Creates an async connection pool to TimescaleDB
+- Handles connection errors gracefully
+
+### Raw Message Storage
+- Saves the complete original message as JSONB for exact replay
+- Preserves all original data structure and metadata
+
+### Normalized Data
+- Also stores individual bid/ask entries in a separate table for easier querying
+- Allows for efficient price/quantity analysis
+
+### Timestamp Handling
+- Uses the message timestamp when available from Kraken
+- Falls back to current time if timestamp not provided
+
+### Error Handling
+- Catches and logs database errors without breaking the main WebSocket flow
+- Continues operation even if database writes fail
+
+### Conflict Resolution
+- Uses ON CONFLICT for bid/ask entries to handle duplicate timestamps
+- Ensures data integrity
+
+## Benefits
+
+- **Exact Replay**: You can reconstruct the exact sequence of events
+- **Efficient Queries**: TimescaleDB is optimized for time-series data
+- **Flexible Analysis**: Both raw messages and normalized data available
+- **Data Integrity**: Checksums stored for verification
+- **High Performance**: Async operations don't block WebSocket processing
 
 ## File Structure
 
